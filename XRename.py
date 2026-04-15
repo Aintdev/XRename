@@ -74,7 +74,7 @@ del "%~f0"
 
     def run_update(self):
         if not self.is_frozen:
-            print("⚠️ Update nur in .exe Modus aktiv")
+            print("⚠️  Update nur in .exe Modus aktiv")
             return
 
         latest = self.get_latest_version()
@@ -191,6 +191,7 @@ class XRenameContextMenu:
     # =========================================================
 
     def ensure_installed(self):
+        if not getattr(sys, "frozen", False): return
         if not self.is_installed():
             self.install()
             sys.exit(1)
