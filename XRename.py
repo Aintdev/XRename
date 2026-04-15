@@ -7,8 +7,7 @@ import requests
 import time
 import subprocess
 from pathlib import Path
-time.sleep(3)
-VERSION = "1.2.2"
+VERSION = "1.2.3"
 
 def get_base_path():
     if getattr(sys, 'frozen', False):
@@ -550,6 +549,10 @@ class MovieRenamer:
                 print("❌ Konnte den Namen nicht finden.")
             print("❌ Konnte keine NFO Datei finden. -> Benutze Dateinamen")
             data = self.extract_name_year(os.path.basename(file))
+            if data and data.get("Title"):
+                self.rename(file, extension, nfoPath, data)
+                continue
+            data = self.extract_year_from_date(os.path.basename(file))
             if data and data.get("Title"):
                 self.rename(file, extension, nfoPath, data)
                 continue
