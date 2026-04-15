@@ -421,9 +421,9 @@ class MovieRenamer:
                 
                 # filter gegen Müll (ASCII-Art etc.)
                 if len(name) > 2 and not name.isupper():
-                    return name, year
+                    return {"Title": name, "Year": year}
 
-        return None, None
+        return {"Title": None, "Year": None}
 
 
     def extract_from_keywords(self, content):
