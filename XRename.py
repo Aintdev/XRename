@@ -16,6 +16,8 @@ def get_base_path():
 API_FILE = os.path.join(get_base_path(), "api.dat")
 apiKey = None
 
+ALLOWEDFILETYPES = ('mkv', 'mp4', 'avi', 'avm')
+
 class XRenameContextMenu:
     def __init__(self):
         self.root_keys = [
@@ -118,9 +120,9 @@ class XRenameContextMenu:
 # =========================================================
 
 class SeriesRenamer:
-
     def __init__(self):
         self.changes = {}
+        FILETYPES = ALLOWEDFILETYPES
 
     # =========================================================
     # PATH LOGIC (IDENTISCH)
@@ -161,6 +163,7 @@ class SeriesRenamer:
             return basename
 
     def fileHandler(self, path, fileName):
+        
         match = re.search(r"s\d{1,2}e\d{1,2}", fileName.lower())
 
         if match is None:
@@ -236,7 +239,7 @@ class MovieRenamer:
     # =========================================================
 
     def getAllMovieLocations(self, rootPath):
-        fileTypes = ('mkv', 'mp4', 'avi', 'avm')
+        fileTypes = ALLOWEDFILETYPES
         movies = []
         if os.path.isfile(rootPath):
             return [rootPath]
@@ -500,20 +503,20 @@ def load_and_check_api_key():
         else:
             print("❌ API Key ungültig.")
 
-    # 3. Neuen Key anfragen
-    new_key = input("Neuen API Key eingeben (Enter = überspringen): ").strip()
+    while True:
+        new_key = input("Neuen API Key eingeben (Enter = überspringen): ").strip()
 
-    if new_key:
+        if not new_key:
+            return
+
         if test_key(new_key):
             apiKey = new_key
             with open(API_FILE, "w", encoding="utf-8") as f:
                 f.write(apiKey)
-            print("API Key gültig")
+            print("✅ API Key gültig")
             return
         else:
-            print("API Key ungültig.")
-            apiKey = None
-            return
+            print("❌ Ungültig, nochmal versuchen.")
 
 if __name__ == "__main__":
     ctx = XRenameContextMenu()
