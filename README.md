@@ -145,7 +145,6 @@ RELEASE DATE: 1999-03-31
 ## Hinweise
 
 - **Backup**: Erstelle ein Backup deiner Dateien vor der Nutzung
-- **Berechtigungen**: Das Kontextmenü benötigt Admin-Rechte während der Installation
 - **Nur EXE**: Manche Features (Auto-Update, Kontextmenü) funktionieren nur in der kompilierten .exe
 - **API Rate Limits**: Die OMDb API hat Rate Limits – mehrfache Abfragen können limitiert sein
 
