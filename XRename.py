@@ -7,8 +7,8 @@ import requests
 import time
 import subprocess
 from pathlib import Path
-
-VERSION = "1.1.0"
+time.sleep(3)
+VERSION = "1.0.0"
 
 def get_base_path():
     if getattr(sys, 'frozen', False):
@@ -56,21 +56,31 @@ class AutoUpdate:
                     f.write(chunk)
 
     def create_kill_and_replace_script(self, old_path, new_path):
-        bat_path = old_path + "_update.bat"
+        from pathlib import Path
+
+        exe_path = Path(old_path)
+        bat_path = exe_path.parent / "update.bat"
+
+        args_str = " ".join([f'"{a}"' for a in sys.argv[1:]])
 
         content = f"""
-@echo off
-timeout /t 2 > nul
-del "{old_path}"
-rename "{new_path}" "{os.path.basename(old_path)}"
-start "" "{old_path}"
+timeout /t 1 > nul
+
+:loop
+del "{old_path}" > nul 2>&1
+if exist "{old_path}" (
+    timeout /t 1 > nul
+    goto loop
+)
+
+rename "{new_path}" "{exe_path.name}"
 del "%~f0"
 """
 
         with open(bat_path, "w") as f:
             f.write(content)
 
-        return bat_path
+        return str(bat_path)
 
     def run_update(self):
         if not self.is_frozen:
@@ -100,7 +110,10 @@ del "%~f0"
 
         bat = self.create_kill_and_replace_script(old_exe, new_exe)
 
-        subprocess.Popen(bat, shell=True)
+        subprocess.Popen(
+            ["cmd", "/c", bat],
+            creationflags=subprocess.CREATE_NEW_CONSOLE
+        )
 
         print("🚀 Update wird angewendet, Programm schließt...")
         sys.exit()
