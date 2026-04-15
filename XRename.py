@@ -8,7 +8,7 @@ import time
 import subprocess
 from pathlib import Path
 time.sleep(3)
-VERSION = "1.2.1"
+VERSION = "1.2.2"
 
 def get_base_path():
     if getattr(sys, 'frozen', False):
@@ -244,8 +244,9 @@ class SeriesRenamer:
             self.fileHandler(myPath, myFileName)
 
     def dirHandler(self, path):
-        for root, _, file in os.walk(path):
-            self.fileHandler(root, file)
+        for root, _, files in os.walk(path):
+            for file in files:
+                self.fileHandler(root, file)
 
     # =========================================================
     # RENAMING LOGIC
