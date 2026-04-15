@@ -1,0 +1,1 @@
+py -m PyInstaller --onefile --distpath "C:/Tools" XRename.py
