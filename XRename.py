@@ -8,7 +8,7 @@ import time
 import subprocess
 from pathlib import Path
 time.sleep(3)
-VERSION = "1.0.0"
+VERSION = "1.2.0"
 
 def get_base_path():
     if getattr(sys, 'frozen', False):
