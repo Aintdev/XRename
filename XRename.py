@@ -7,7 +7,7 @@ import requests
 import time
 import subprocess
 from pathlib import Path
-VERSION = "1.2.3"
+VERSION = "1.2.4"
 
 def get_base_path():
     if getattr(sys, 'frozen', False):
@@ -531,40 +531,57 @@ class MovieRenamer:
             folder = os.path.dirname(file)
             nfoPath = os.path.join(folder, oldName + ".nfo")
             if os.path.isfile(nfoPath):
+                print("Failed.")
+                print("☺️  Attempt 1: ", flush=False)
                 data = self.tryNfoImdbReadout(nfoPath)
                 if data:
+                    print("SUCESS")
                     self.rename(file, extension, nfoPath, data)
                     continue
-                
+                print("☺️  Attempt 2: ", flush=False)
+                print("Failed.")
                 data = self.parse_nfo(nfoPath)
                 if data and data.get("Title"):
+                    print("SUCESS")
                     self.rename(file, extension, nfoPath, data)
                     continue
+                print("Failed.")
+                print("☺️  Attempt 3: ", flush=False)
                 with open(nfoPath, "r", encoding="utf-8", errors="ignore") as f:
                     content = f.read()
                 data = self.extract_name_year(content)
                 if data and data.get("Title"):
+                    print("SUCESS")
                     self.rename(file, extension, nfoPath, data)
                     continue
+                print("Failed.")
                 print("❌ Konnte den Namen nicht finden.")
             print("❌ Konnte keine NFO Datei finden. -> Benutze Dateinamen")
+            print("☺️  Attempt 4: ", flush=False)
             data = self.extract_name_year(os.path.basename(file))
             if data and data.get("Title"):
+                print("SUCESS")
                 self.rename(file, extension, nfoPath, data)
                 continue
-            data = self.extract_year_from_date(os.path.basename(file))
+            print("Failed.")
+            print("☺️  Attempt 5: ", flush=False)
+            data = self.extract_from_title_line(os.path.basename(file))
             if data and data.get("Title"):
+                print("SUCESS")
                 self.rename(file, extension, nfoPath, data)
                 continue
             else:
+                print("Failed.")
+                print("☺️  Attempt 7: ", flush=False)
                 while True:
                     try:
                         print("☺️  ---------------------------------")
                         print("☺️  "+ os.path.basename(file))
-                        data = input("☺️  Konnte leider keinen Namen interpretieren. Bitte geben sie den gewünschten Dateinamen und Jahr ein (Req. Format Z.b: 'Spiderman 2, 2023') (Leer = Datei Überspringen): ").split(", ", 1)
+                        data = input("☺️  Konnte leider keinen Namen interpretieren. Bitte geben sie den gewünschten Dateinamen und Jahr ein (Req. Format Z.b: 'Spiderman 2, 2023') (Leer = Datei Überspringen): ")
                         if not data:
                             continue
-                        data = {"Title": data[0], "Year": data[1]}
+                        data.split(", ", 1) = {"Title": data[0], "Year": data[1]}
+                        print("SUCESS")
                         self.rename(file, extension, nfoPath, data)
                         break
                     except: 
