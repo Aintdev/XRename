@@ -4,6 +4,11 @@ import re
 import msvcrt
 import winreg
 import requests
+import time
+import subprocess
+from pathlib import Path
+
+VERSION = "1.1.0"
 
 def get_base_path():
     if getattr(sys, 'frozen', False):
@@ -17,6 +22,88 @@ API_FILE = os.path.join(get_base_path(), "api.dat")
 apiKey = None
 
 ALLOWEDFILETYPES = ('mkv', 'mp4', 'avi', 'avm')
+
+class AutoUpdate:
+    def __init__(self, version: str, raw_version_url: str, download_url: str):
+        """
+        version: aktuelle lokale VERSION
+        raw_version_url: https://raw.githubusercontent.com/user/repo/main/version.txt
+        download_url: direkte exe url (GitHub Release asset empfohlen)
+        """
+        self.current_version = version
+        self.raw_version_url = raw_version_url
+        self.download_url = download_url
+
+        self.exe_path = sys.executable  # funktioniert in .exe
+        self.is_frozen = getattr(sys, "frozen", False)
+
+    def get_latest_version(self):
+        try:
+            r = requests.get(self.raw_version_url, timeout=5)
+            return r.text.strip()
+        except:
+            return None
+
+    def is_newer(self, latest, current):
+        def parse(v): return [int(x) for x in v.split(".")]
+        return parse(latest) > parse(current)
+
+    def download_new_version(self, path):
+        r = requests.get(self.download_url, stream=True)
+        with open(path, "wb") as f:
+            for chunk in r.iter_content(chunk_size=8192):
+                if chunk:
+                    f.write(chunk)
+
+    def create_kill_and_replace_script(self, old_path, new_path):
+        bat_path = old_path + "_update.bat"
+
+        content = f"""
+@echo off
+timeout /t 2 > nul
+del "{old_path}"
+rename "{new_path}" "{os.path.basename(old_path)}"
+start "" "{old_path}"
+del "%~f0"
+"""
+
+        with open(bat_path, "w") as f:
+            f.write(content)
+
+        return bat_path
+
+    def run_update(self):
+        if not self.is_frozen:
+            print("⚠️ Update nur in .exe Modus aktiv")
+            return
+
+        latest = self.get_latest_version()
+        if not latest:
+            print("❌ Konnte Version nicht prüfen")
+            return
+
+        print(f"📦 Aktuell: {self.current_version} | Neu: {latest}")
+
+        if not self.is_newer(latest, self.current_version):
+            print("✅ Kein Update nötig")
+            return
+
+        print("⬇️ Update verfügbar, lade herunter...")
+
+        exe_dir = Path(self.exe_path).parent
+        old_exe = self.exe_path
+        new_exe = str(exe_dir / (Path(self.exe_path).stem + " New.exe"))
+
+        self.download_new_version(new_exe)
+
+        print("🧠 Starte Update-Prozess...")
+
+        bat = self.create_kill_and_replace_script(old_exe, new_exe)
+
+        subprocess.Popen(bat, shell=True)
+
+        print("🚀 Update wird angewendet, Programm schließt...")
+        sys.exit()
 
 class XRenameContextMenu:
     def __init__(self):
@@ -504,7 +591,8 @@ def load_and_check_api_key():
             print("❌ API Key ungültig.")
 
     while True:
-        new_key = input("Neuen API Key eingeben (Enter = überspringen): ").strip()
+        print("☺️  API Key Generieren auf: https://www.omdbapi.com/apikey.aspx")
+        new_key = input("☺️  Neuen API Key eingeben (Enter = überspringen): ").strip()
 
         if not new_key:
             return
@@ -518,7 +606,20 @@ def load_and_check_api_key():
         else:
             print("❌ Ungültig, nochmal versuchen.")
 
+
+
 if __name__ == "__main__":
+    print("☺️  VERSION:", VERSION)
+
+    # UPDATE
+    updater = AutoUpdate(
+        version=VERSION,
+        raw_version_url="https://raw.githubusercontent.com/Aintdev/XRename/refs/heads/main/version.txt",
+        download_url="https://github.com/Aintdev/XRename/releases/latest/download/XRename.exe"
+    )
+
+    updater.run_update()
+
     ctx = XRenameContextMenu()
 
     if "--remove" in sys.argv:
