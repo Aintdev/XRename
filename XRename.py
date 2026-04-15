@@ -580,7 +580,8 @@ class MovieRenamer:
                         data = input("☺️  Konnte leider keinen Namen interpretieren. Bitte geben sie den gewünschten Dateinamen und Jahr ein (Req. Format Z.b: 'Spiderman 2, 2023') (Leer = Datei Überspringen): ")
                         if not data:
                             continue
-                        data.split(", ", 1) = {"Title": data[0], "Year": data[1]}
+                        data = data.split(", ", 1) 
+                        data = {"Title": data[0], "Year": data[1]}
                         print("SUCESS")
                         self.rename(file, extension, nfoPath, data)
                         break
