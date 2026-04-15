@@ -8,7 +8,7 @@ import time
 import subprocess
 from pathlib import Path
 time.sleep(3)
-VERSION = "1.2.0"
+VERSION = "1.2.1"
 
 def get_base_path():
     if getattr(sys, 'frozen', False):
@@ -244,8 +244,8 @@ class SeriesRenamer:
             self.fileHandler(myPath, myFileName)
 
     def dirHandler(self, path):
-        for file in os.listdir(path):
-            self.fileHandler(path, file)
+        for root, _, file in os.walk(path):
+            self.fileHandler(root, file)
 
     # =========================================================
     # RENAMING LOGIC
@@ -553,10 +553,18 @@ class MovieRenamer:
                 self.rename(file, extension, nfoPath, data)
                 continue
             else:
-                print(os.path.basename(file))
-                data = input("Konnte leider keinen Namen interpretieren. Bitte geben sie den gewünschten Dateinamen und Jahr ein (Z.b: 'Spiderman 2, 2023'): ").split(", ", 1)
-                data = {"Title": data[0], "Year": data[1]}
-                self.rename(file, extension, nfoPath, data)
+                while True:
+                    try:
+                        print("☺️  ---------------------------------")
+                        print("☺️  "+ os.path.basename(file))
+                        data = input("☺️  Konnte leider keinen Namen interpretieren. Bitte geben sie den gewünschten Dateinamen und Jahr ein (Req. Format Z.b: 'Spiderman 2, 2023') (Leer = Datei Überspringen): ").split(", ", 1)
+                        if not data:
+                            continue
+                        data = {"Title": data[0], "Year": data[1]}
+                        self.rename(file, extension, nfoPath, data)
+                        break
+                    except: 
+                        print("❌ Bitte halten sie sich an das angegebene Format.")
                 continue
 
     # =========================================================
