@@ -4,10 +4,10 @@ import re
 import msvcrt
 import winreg
 import requests
-import time
+import msvcrt
 import subprocess
 from pathlib import Path
-VERSION = "1.2.4"
+VERSION = "1.2.5"
 
 def get_base_path():
     if getattr(sys, 'frozen', False):
@@ -24,11 +24,6 @@ ALLOWEDFILETYPES = ('mkv', 'mp4', 'avi', 'avm')
 
 class AutoUpdate:
     def __init__(self, version: str, raw_version_url: str, download_url: str):
-        """
-        version: aktuelle lokale VERSION
-        raw_version_url: https://raw.githubusercontent.com/user/repo/main/version.txt
-        download_url: direkte exe url (GitHub Release asset empfohlen)
-        """
         self.current_version = version
         self.raw_version_url = raw_version_url
         self.download_url = download_url
@@ -97,6 +92,12 @@ del "%~f0"
             print("✅ Kein Update nötig")
             return
 
+        release_url = self.download_url.split("/download/")[0]
+
+        print(f"Release Seite des Updates: {release_url}\nSoll das Update runtergeladen werden? J/N: ", flush=None)
+        key = msvcrt.getch().decode().lower()
+        if (key != "y" and key != "j"):
+            return
         print("⬇️ Update verfügbar, lade herunter...")
 
         exe_dir = Path(self.exe_path).parent
@@ -676,3 +677,7 @@ if __name__ == "__main__":
         MovieRenamer().run()
     elif "--s" in sys.argv:
         SeriesRenamer().run()
+    else:
+        print("""❌ Argument ungültig oder fehlend. Bitte benutze folgende argumente:
+              --s {PATH}        - um eine Serie oder Episoden umzu benennen
+              --m {PATH}        - um einen Film umzu benennen""")
