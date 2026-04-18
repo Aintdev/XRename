@@ -7,7 +7,7 @@ import requests
 import msvcrt
 import subprocess
 from pathlib import Path
-VERSION = "1.2.5"
+VERSION = "1.2.6"
 
 def get_base_path():
     if getattr(sys, 'frozen', False):
@@ -130,6 +130,17 @@ class XRenameContextMenu:
     # CHECK
     # =========================================================
 
+    def get_installed_exe(self):
+        try:
+            with winreg.OpenKey(
+                self.reg_root,
+                self.root_keys[0] + r"\shell\Series\command"
+            ) as key:
+                value, _ = winreg.QueryValueEx(key, "")
+                return value
+        except FileNotFoundError:
+            return None
+
     def is_installed(self):
         try:
             with winreg.OpenKey(self.reg_root, self.root_keys[0], 0, winreg.KEY_READ):
@@ -205,7 +216,20 @@ class XRenameContextMenu:
 
     def ensure_installed(self):
         if not getattr(sys, "frozen", False): return
-        if not self.is_installed():
+        
+        # Download Folder Check
+        if "download" in os.path.dirname(sys.argv[0]).lower():
+            print("Die Binary befindet sich derzeit im Downloads-Ordner. Bitte bestätigen Sie, dass die Kontextmenü-Verknüpfung auf diesen Speicherort umgeleitet werden soll. (J/N)", flush=None)
+            answer = msvcrt.getch().decode().lower()
+            if answer not in ("y", "j"): return
+
+        
+
+        current_exe = os.path.abspath(sys.argv[0])
+        installed = self.get_installed_exe()
+
+        if not installed or current_exe not in installed:
+            print("XRename Context Menu wird aktualisiert...")
             self.install()
             sys.exit(1)
 
@@ -651,31 +675,30 @@ def load_and_check_api_key():
         else:
             print("❌ Ungültig, nochmal versuchen.")
 
+def configure_Context_Menu():
+    ctx = XRenameContextMenu()
+    if "--remove" in sys.argv:
+        ctx.remove()
+        sys.exit(0)
+    ctx.ensure_installed()
 
-
-if __name__ == "__main__":
-    print("☺️  VERSION:", VERSION)
-
-    # UPDATE
+def run_update():
     updater = AutoUpdate(
         version=VERSION,
         raw_version_url="https://raw.githubusercontent.com/Aintdev/XRename/refs/heads/main/version.txt",
         download_url="https://github.com/Aintdev/XRename/releases/latest/download/XRename.exe"
     )
-
     updater.run_update()
 
-    ctx = XRenameContextMenu()
-
-    if "--remove" in sys.argv:
-        ctx.remove()
-        sys.exit(0)
-    ctx.ensure_installed()
+if __name__ == "__main__":
+    print("☺️  VERSION:", VERSION)
+    run_update()
+    configure_Context_Menu()
     load_and_check_api_key()
 
-    if "--m" in sys.argv:
+    if "--m" == sys.argv[1] and os.path.exists(sys.argv[-1]):
         MovieRenamer().run()
-    elif "--s" in sys.argv:
+    elif "--s" in sys.argv[1] and os.path.exists(sys.argv[-1]):
         SeriesRenamer().run()
     else:
         print("""❌ Argument ungültig oder fehlend. Bitte benutze folgende argumente:
