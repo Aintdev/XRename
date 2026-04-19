@@ -286,7 +286,6 @@ class XRenameContextMenu:
 class SeriesRenamer:
     def __init__(self):
         self.changes = {}
-        FILETYPES = ALLOWEDFILETYPES
 
     # =========================================================
     # PATH LOGIC (IDENTISCH)
@@ -328,6 +327,8 @@ class SeriesRenamer:
             return basename
 
     def fileHandler(self, path, fileName):
+        if not fileName.endswith(ALLOWEDFILETYPES):
+            return
         
         match = re.search(r"s\d{1,2}e\d{1,2}", fileName.lower())
 
