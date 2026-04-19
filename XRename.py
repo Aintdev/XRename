@@ -6,8 +6,11 @@ import winreg
 import requests
 import msvcrt
 import subprocess
+import keyring
 from pathlib import Path
-VERSION = "1.2.6"
+
+VERSION = "1.3.0"
+ALLOWEDFILETYPES = ('mkv', 'mp4', 'avi', 'avm')
 
 def get_base_path():
     if getattr(sys, 'frozen', False):
@@ -17,10 +20,53 @@ def get_base_path():
         # normaler Python Run
         return os.path.dirname(os.path.abspath(__file__))
 
-API_FILE = os.path.join(get_base_path(), "api.dat")
-apiKey = None
+class APIHandler:
+    SERVICE = "xrename"
+    KEY_NAME = "omdb"
 
-ALLOWEDFILETYPES = ('mkv', 'mp4', 'avi', 'avm')
+    def __init__(self):
+        self.apiKey = self.loadAPIKey()
+        pass
+
+    def saveKey(self, key: str):
+        self.apiKey = key
+        keyring.set_password(self.SERVICE, self.KEY_NAME, key)
+
+    def loadAPIKey(self) -> str | None:
+        return keyring.get_password(self.SERVICE, self.KEY_NAME)
+
+    def _test_key(self, key: str) -> bool:
+        url = f"http://www.omdbapi.com/?i=tt0111161&apikey={key}"
+        try:
+            r = requests.get(url, timeout=5)
+            data = r.json()
+            return data.get("Response") != "False"
+        except requests.RequestException:
+            return False
+
+    def configure(self):
+        if self.apiKey:
+            if self._test_key(self.apiKey):
+                print("✅ API Key gültig")
+                return
+            else:
+                print("❌ API Key ungültig.")
+
+        while True:
+            print("☺️  API Key Generieren auf: https://www.omdbapi.com/apikey.aspx")
+            new_key = input("☺️  Neuen API Key eingeben (Enter = überspringen): ").strip()
+
+            if not new_key:
+                print("⏭️ Übersprungen")
+                return
+
+            if self._test_key(new_key):
+                self.apiKey = new_key
+                self.saveKey(new_key)
+                print("✅ API Key gültig und wurde in Keychain gespeichert.")
+                return
+            else:
+                print("❌ Ungültig, nochmal versuchen.")
 
 class AutoUpdate:
     def __init__(self, version: str, raw_version_url: str, download_url: str):
@@ -35,7 +81,7 @@ class AutoUpdate:
         try:
             r = requests.get(self.raw_version_url, timeout=5)
             return r.text.strip()
-        except:
+        except requests.RequestException:
             return None
 
     def is_newer(self, latest, current):
@@ -54,9 +100,6 @@ class AutoUpdate:
 
         exe_path = Path(old_path)
         bat_path = exe_path.parent / "update.bat"
-
-        args_str = " ".join([f'"{a}"' for a in sys.argv[1:]])
-
         content = f"""
 timeout /t 1 > nul
 
@@ -94,7 +137,7 @@ del "%~f0"
 
         release_url = self.download_url.split("/download/")[0]
 
-        print(f"Release Seite des Updates: {release_url}\nSoll das Update runtergeladen werden? J/N: ", flush=None)
+        print(f"☺️  Release Seite des Updates: {release_url}\nSoll das Update runtergeladen werden? J/N: ", flush=None)
         key = msvcrt.getch().decode().lower()
         if (key != "y" and key != "j"):
             return
@@ -155,7 +198,7 @@ class XRenameContextMenu:
     def install(self):
         exe = os.path.abspath(sys.argv[0])
 
-        print("Installiere XRename Context Menu...")
+        print("✅ Installiere XRename Context Menu...")
 
         for base in self.root_keys:
             try:
@@ -182,12 +225,12 @@ class XRenameContextMenu:
                 with winreg.CreateKey(self.reg_root, base + r"\shell\Movie\command") as c:
                     winreg.SetValue(c, "", winreg.REG_SZ, f'"{exe}" --m "%L"')
 
-                print(f"OK: {base}")
+                print(f"✅ OK: {base}")
 
             except PermissionError:
-                print(f"Keine Rechte: {base}")
+                print(f"❌ Keine Rechte: {base}")
 
-        print("Fertig.")
+        print("✅ Fertig.")
 
     # =========================================================
     # REMOVE
@@ -205,7 +248,7 @@ class XRenameContextMenu:
                 winreg.DeleteKey(self.reg_root, base + r"\shell")
                 winreg.DeleteKey(self.reg_root, base)
 
-                print(f"Removed: {base}")
+                print(f"✅ Removed: {base}")
 
             except FileNotFoundError:
                 pass
@@ -219,7 +262,7 @@ class XRenameContextMenu:
         
         # Download Folder Check
         if "download" in os.path.dirname(sys.argv[0]).lower():
-            print("Die Binary befindet sich derzeit im Downloads-Ordner. Bitte bestätigen Sie, dass die Kontextmenü-Verknüpfung auf diesen Speicherort umgeleitet werden soll. (J/N)", flush=None)
+            print("❗ Die Binary befindet sich derzeit im Downloads-Ordner. Bitte bestätigen Sie, dass die Kontextmenü-Verknüpfung auf diesen Speicherort umgeleitet werden soll. (J/N)", flush=None)
             answer = msvcrt.getch().decode().lower()
             if answer not in ("y", "j"): return
 
@@ -229,7 +272,7 @@ class XRenameContextMenu:
         installed = self.get_installed_exe()
 
         if not installed or current_exe not in installed:
-            print("XRename Context Menu wird aktualisiert...")
+            print("☺️  XRename Context Menu wird aktualisiert...")
             self.install()
             sys.exit(1)
 
@@ -239,10 +282,6 @@ class XRenameContextMenu:
 
     def get_path(self):
         return sys.argv[-1] if len(sys.argv) > 1 else os.getcwd()
-
-# =========================================================
-# SERIES RENAMER
-# =========================================================
 
 class SeriesRenamer:
     def __init__(self):
@@ -336,10 +375,6 @@ class SeriesRenamer:
 
         print("Exited.")
 
-# =========================================================
-# MOVIE RENAMER
-# =========================================================
-
 class MovieRenamer:
     def __init__(self):
         self.changes = {}
@@ -392,6 +427,7 @@ class MovieRenamer:
     @staticmethod
     def get_movie_data(imdb_id):
         print(f"☺️  {imdb_id=}")
+        apiKey = APIHandler().loadAPIKey()
         if not apiKey:
             raise ValueError("API Key nicht gesetzt")
 
@@ -627,53 +663,9 @@ class MovieRenamer:
         print("Exited.")
         sys.exit(1)
 
-
 # =========================================================
 # MAIN
 # =========================================================
-
-def load_and_check_api_key():
-    global apiKey
-
-    # 1. Key aus Datei laden
-    if os.path.exists(API_FILE):
-        with open(API_FILE, "r", encoding="utf-8") as f:
-            apiKey = f.read().strip()
-    else:
-        apiKey = ""
-
-    def test_key(key: str) -> bool:
-        url = f"http://www.omdbapi.com/?i=tt0111161&apikey={key}"
-        try:
-            r = requests.get(url, timeout=5)
-            data = r.json()
-            return data.get("Response") != "False"
-        except:
-            return False
-
-    # 2. Wenn Key vorhanden → testen
-    if apiKey:
-        if test_key(apiKey):
-            print("✅ API Key gültig")
-            return
-        else:
-            print("❌ API Key ungültig.")
-
-    while True:
-        print("☺️  API Key Generieren auf: https://www.omdbapi.com/apikey.aspx")
-        new_key = input("☺️  Neuen API Key eingeben (Enter = überspringen): ").strip()
-
-        if not new_key:
-            return
-
-        if test_key(new_key):
-            apiKey = new_key
-            with open(API_FILE, "w", encoding="utf-8") as f:
-                f.write(apiKey)
-            print("✅ API Key gültig")
-            return
-        else:
-            print("❌ Ungültig, nochmal versuchen.")
 
 def configure_Context_Menu():
     ctx = XRenameContextMenu()
@@ -694,7 +686,8 @@ if __name__ == "__main__":
     print("☺️  VERSION:", VERSION)
     run_update()
     configure_Context_Menu()
-    load_and_check_api_key()
+
+    APIHandler().configure()
 
     if "--m" == sys.argv[1] and os.path.exists(sys.argv[-1]):
         MovieRenamer().run()
