@@ -10,7 +10,7 @@ from pathlib import Path
 from colorlog import ColoredFormatter
 import logging
 
-VERSION = "1.3.3"
+VERSION = "1.3.2"
 
 ALLOWEDFILETYPES = ('mkv', 'mp4', 'avi', 'avm')
 FORBIDDENFILENAMES = ("<", ">", ":", '"', "/", "\\", "|", "?", "*")
