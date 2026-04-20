@@ -10,7 +10,7 @@ from pathlib import Path
 from colorlog import ColoredFormatter
 import logging
 
-VERSION = "1.3.2"
+VERSION = "1.3.3"
 
 ALLOWEDFILETYPES = ('mkv', 'mp4', 'avi', 'avm')
 FORBIDDENFILENAMES = ("<", ">", ":", '"', "/", "\\", "|", "?", "*")
@@ -396,7 +396,7 @@ class SeriesRenamer:
 
         newFileName = f"{self.makeShowName(fileName[0:index-1])} {match.group()}.{fileEnding}"
 
-        print(fileName, "-->", newFileName)
+        logger.info("%s --> %s", fileName, newFileName)
 
         self.changes[os.path.join(path, fileName)] = os.path.join(path, newFileName)
 
@@ -479,7 +479,7 @@ class MovieRenamer:
 
     @staticmethod
     def get_movie_data(imdb_id):
-        print(f"☺️  {imdb_id=}")
+        logger.info("IMDb id: %s", imdb_id)
         apiKey = APIHandler().loadAPIKey()
         if not apiKey:
             raise ValueError("API Key nicht gesetzt")
@@ -488,7 +488,6 @@ class MovieRenamer:
 
         try:
             r = requests.get(url, timeout=5)
-            #print(r.json())
             return r.json()
         except requests.RequestException:
             return None
@@ -723,6 +722,7 @@ def invalidArgs():
     logger.critical("Argument ungültig oder fehlend. Bitte benutze folgende argumente:")
     logger.critical("\t--s {PATH}\t-\tum eine Serie oder Episoden umzu benennen")
     logger.critical("\t--m {PATH}\t-\tum einen Film umzu benennen")
+    logger.critical("\t--remove\t-\tum den Registry entry zu entfernen.")
     exit(0)
 
 if __name__ == "__main__":
