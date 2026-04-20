@@ -41,7 +41,6 @@ class APIHandler:
 
     def __init__(self):
         self.apiKey = self.loadAPIKey()
-        self.apiKey = "a8jhg7a" # my api key
         pass
 
     def saveKey(self, key: str):
