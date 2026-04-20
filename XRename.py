@@ -4,13 +4,28 @@ import re
 import msvcrt
 import winreg
 import requests
-import msvcrt
 import subprocess
 import keyring
 from pathlib import Path
 
 VERSION = "1.3.0"
 ALLOWEDFILETYPES = ('mkv', 'mp4', 'avi', 'avm')
+
+FORBIDDENFILENAMES = ("<", ">", ":", '"', "/", "\\", "|", "?", "*")
+RESERVED_NAMES = {
+    "CON", "PRN", "AUX", "NUL",
+    *[f"COM{i}" for i in range(1, 10)],
+    *[f"LPT{i}" for i in range(1, 10)]
+}
+def sanitize_filename(name: str) -> str:
+    for char in FORBIDDENFILENAMES:
+        name = " ".join(name.replace(char, " ").split())
+    name = name.rstrip(". ")
+    if name.upper() in RESERVED_NAMES:
+        name = f"{name}_"
+    if not name:
+        name = "Unknown"
+    return name[:255]
 
 def get_base_path():
     if getattr(sys, 'frozen', False):
@@ -327,7 +342,7 @@ class SeriesRenamer:
             return basename
 
     def fileHandler(self, path, fileName):
-        if not fileName.endswith(ALLOWEDFILETYPES):
+        if not fileName.lower().endswith(ALLOWEDFILETYPES):
             return
         
         match = re.search(r"s\d{1,2}e\d{1,2}", fileName.lower())
@@ -352,6 +367,7 @@ class SeriesRenamer:
 
     def rename(self):
         for key, value in self.changes.items():
+            value = sanitize_filename(value)
             if not os.path.exists(value):
                 os.rename(key, value)
                 print(f"Rename completed: {key} --> {value}")
@@ -561,7 +577,7 @@ class MovieRenamer:
         return result
 
     def rename(self, movieFile, extension, nfoFile, data):
-        title = data.get("Title") or "Unknown"
+        title = sanitize_filename(data.get("Title")) or "Unknown"
         year = data.get("Year")
 
         year_part = f" ({year})" if year else ""
@@ -583,7 +599,7 @@ class MovieRenamer:
             os.rename(nfoFile, new_nfo)
             print(f"✅ Renamed {os.path.basename(nfoFile)} -> {title}{year_part}.nfo")
         except FileNotFoundError as e:
-            print("Konnte NFO Datei nicht finden.", e)
+            print("❌ Konnte NFO Datei nicht finden.", e)
 
     def getData(self, files):
         for file in files:
@@ -593,15 +609,14 @@ class MovieRenamer:
             folder = os.path.dirname(file)
             nfoPath = os.path.join(folder, oldName + ".nfo")
             if os.path.isfile(nfoPath):
-                print("Failed.")
                 print("☺️  Attempt 1: ", flush=False)
                 data = self.tryNfoImdbReadout(nfoPath)
                 if data:
                     print("SUCESS")
                     self.rename(file, extension, nfoPath, data)
                     continue
-                print("☺️  Attempt 2: ", flush=False)
                 print("Failed.")
+                print("☺️  Attempt 2: ", flush=False)
                 data = self.parse_nfo(nfoPath)
                 if data and data.get("Title"):
                     print("SUCESS")
@@ -634,7 +649,7 @@ class MovieRenamer:
                 continue
             else:
                 print("Failed.")
-                print("☺️  Attempt 7: ", flush=False)
+                print("☺️  Attempt 6: ", flush=False)
                 while True:
                     try:
                         print("☺️  ---------------------------------")
@@ -687,7 +702,6 @@ if __name__ == "__main__":
     print("☺️  VERSION:", VERSION)
     run_update()
     configure_Context_Menu()
-
     APIHandler().configure()
 
     if "--m" == sys.argv[1] and os.path.exists(sys.argv[-1]):
