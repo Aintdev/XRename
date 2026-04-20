@@ -8,7 +8,7 @@ import subprocess
 import keyring
 from pathlib import Path
 
-VERSION = "1.3.0"
+VERSION = "1.3.1"
 ALLOWEDFILETYPES = ('mkv', 'mp4', 'avi', 'avm')
 
 FORBIDDENFILENAMES = ("<", ">", ":", '"', "/", "\\", "|", "?", "*")
