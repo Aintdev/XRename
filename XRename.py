@@ -9,8 +9,16 @@ import keyring
 from pathlib import Path
 from colorlog import ColoredFormatter
 import logging
+from typing import Callable
 
-VERSION = "1.3.2"
+#
+# UPDATE LOG
+#
+# * NOW LOGGER HANDLES ALL INPUTS AND YOU CAN WRITE IN LOGGED LINES.
+# * LOGGING MESSAGES ARE NOW ALL ENGLISH
+#
+
+VERSION = "1.3.3"
 
 ALLOWEDFILETYPES = ('mkv', 'mp4', 'avi', 'avm')
 FORBIDDENFILENAMES = ("<", ">", ":", '"', "/", "\\", "|", "?", "*")
@@ -22,7 +30,7 @@ RESERVED_NAMES = {
 
 logHandler = logging.StreamHandler()
 formatter = ColoredFormatter(
-    "%(asctime)s | %(log_color)s%(levelname)-8s%(reset)s: %(message)s",
+    "%(asctime)s | %(log_color)s%(levelname)8s%(reset)s: %(message)s",
     datefmt="%H:%M:%S"
 )
 
@@ -32,16 +40,14 @@ logger = logging.getLogger()
 logger.addHandler(logHandler)
 logger.setLevel(logging.INFO)
 
-def logInput(prompt=""):
-    # alten Terminator speichern
+def log_Read(logFunc: Callable[[str], None], message: str, readFunc: Callable[[], str]):
     old_terminator = logHandler.terminator
     
     try:
-        # kein Zeilenumbruch → input bleibt in der gleichen Zeile
         logHandler.terminator = ""
         
-        logger.info(prompt)
-        value = input()
+        logFunc(message)
+        value = readFunc()
         
         return value
     finally:
@@ -97,26 +103,26 @@ class APIHandler:
     def configure(self):
         if self.apiKey:
             if self._test_key(self.apiKey):
-                logger.info("API Key gültig")
+                logger.info("API Key is valid")
                 return
             else:
-                logger.error("API Key ungültig.")
+                logger.error("API Key is invalid")
 
         while True:
-            logger.info("API Key Generieren auf: https://www.omdbapi.com/apikey.aspx")
-            new_key = logInput("Neuen API Key eingeben (Enter = überspringen): ").strip()
+            logger.info("Generate API Key at: https://www.omdbapi.com/apikey.aspx")
+            new_key = log_Read(logger.info, "Enter new API Key (Empty = Skip): ", lambda: input().strip())
 
             if not new_key:
-                logger.info("Übersprungen")
+                logger.info("API Skipped")
                 return
 
             if self._test_key(new_key):
                 self.apiKey = new_key
                 self.saveKey(new_key)
-                logger.info("API Key gültig und wurde in Keychain gespeichert.")
+                logger.info("API Key is valid and was saved in Keychain")
                 return
             else:
-                logger.error("Ungültig, nochmal versuchen.")
+                logger.error("Invalid - Try Again")
 
 class AutoUpdate:
     def __init__(self, version: str, raw_version_url: str, download_url: str):
@@ -146,8 +152,6 @@ class AutoUpdate:
                     f.write(chunk)
 
     def create_kill_and_replace_script(self, old_path, new_path):
-        from pathlib import Path
-
         exe_path = Path(old_path)
         bat_path = exe_path.parent / "update.bat"
         content = f"""
@@ -171,29 +175,31 @@ del "%~f0"
 
     def run_update(self):
         if not self.is_frozen:
-            logger.warning("Update nur in .exe Modus aktiv")
+            logger.warning("Update only active in .exe mode")
             return
 
         latest = self.get_latest_version()
         if not latest:
-            logger.error("Konnte Version nicht prüfen")
+            logger.error("Could not verify version")
             return
 
-        logger.info(f"Aktuell: {self.current_version} | Neu: {latest}")
+        logger.info(f"Current: {self.current_version} | Latest: {latest}")
 
         if not self.is_newer(latest, self.current_version):
-            logger.info("Kein Update nötig")
+            logger.info("No update available")
             return
 
         release_url = self.download_url.split("/download/")[0]
 
-        logger.info(f"Release Seite des Updates: {release_url}" )
-        logger.info("Soll das Update runtergeladen werden? (J/N)")
-        print("--> ")
-        key = msvcrt.getch().decode().lower()
+        logger.info(f"Release URL: {release_url}" )
+
+        key = log_Read(logger.info,
+                       "Do Update? (Y/N) ",
+                       lambda: msvcrt.getch().decode().lower())
+        
         if (key != "y" and key != "j"):
             return
-        logger.info("Update verfügbar, lade herunter...")
+        logger.info("Update available, downloading...")
 
         exe_dir = Path(self.exe_path).parent
         old_exe = self.exe_path
@@ -201,7 +207,7 @@ del "%~f0"
 
         self.download_new_version(new_exe)
 
-        logger.info("Starte Update-Prozess...")
+        logger.info("Installing...")
 
         bat = self.create_kill_and_replace_script(old_exe, new_exe)
 
@@ -210,7 +216,7 @@ del "%~f0"
             creationflags=subprocess.CREATE_NEW_CONSOLE
         )
 
-        logger.warning("Update wird angewendet, Programm schließt...")
+        logger.warning("Update is being applied, program is closing...")
         exit()
 
 class XRenameContextMenu:
@@ -250,7 +256,7 @@ class XRenameContextMenu:
     def install(self):
         exe = os.path.abspath(sys.argv[0])
 
-        logger.info("Installiere XRename Context Menu...")
+        logger.info("Installing context menu...")
 
         for base in self.root_keys:
             try:
@@ -265,24 +271,24 @@ class XRenameContextMenu:
 
                 # ================= SERIES =================
                 with winreg.CreateKey(self.reg_root, base + r"\shell\Series") as s:
-                    winreg.SetValue(s, "", winreg.REG_SZ, "Rename Serie/Folge")
+                    winreg.SetValue(root, "", winreg.REG_SZ, "Rename Series/Episodes")
 
                 with winreg.CreateKey(self.reg_root, base + r"\shell\Series\command") as c:
                     winreg.SetValue(c, "", winreg.REG_SZ, f'"{exe}" --s "%L"')
 
                 # ================= MOVIE =================
                 with winreg.CreateKey(self.reg_root, base + r"\shell\Movie") as m:
-                    winreg.SetValue(m, "", winreg.REG_SZ, "Rename Film")
+                    winreg.SetValue(root, "", winreg.REG_SZ, "Rename Movie")
 
                 with winreg.CreateKey(self.reg_root, base + r"\shell\Movie\command") as c:
                     winreg.SetValue(c, "", winreg.REG_SZ, f'"{exe}" --m "%L"')
 
-                logger.info(f"OK: {base}")
+                logger.info(f"ok: {base}")
 
             except PermissionError:
-                logger.error(f"Keine Rechte: {base}")
+                logger.error(f"No permissions: {base}")
 
-        logger.info("Fertig.")
+        logger.info("Done.")
 
     # =========================================================
     # REMOVE
@@ -314,7 +320,7 @@ class XRenameContextMenu:
         
         # Download Folder Check
         if "download" in os.path.dirname(sys.argv[0]).lower():
-            logger.critical("Die Binary befindet sich derzeit im Downloads-Ordner. Bitte bestätigen Sie, dass die Kontextmenü-Verknüpfung auf diesen Speicherort umgeleitet werden soll. (J/N)")
+            logger.critical("The binary is currently located in the Downloads folder. Please confirm that the context menu shortcut should be redirected to this location. (Y/N)")
             answer = msvcrt.getch().decode().lower()
             if answer not in ("y", "j"): return
 
@@ -322,7 +328,7 @@ class XRenameContextMenu:
         installed = self.get_installed_exe()
 
         if not installed or current_exe not in installed:
-            logger.info("XRename Context Menu wird aktualisiert...")
+            logger.info("XRename context menu updating...")
             self.install()
             exit(1)
 
@@ -407,7 +413,7 @@ class SeriesRenamer:
                 os.rename(key, value)
                 logger.info(f"Rename completed: {key} --> {value}")
             else:
-                logger.warning(f"Skipped {key}, {value} existiert schon.")
+                logger.warning(f"Skipped {key}, {value} already exists.")
 
     # =========================================================
     # RUN
@@ -417,10 +423,8 @@ class SeriesRenamer:
         self.configPath(sys.argv)
 
         if len(self.changes) > 50:
-            logger.info("More than 50 Changes. Please confirm these Changes. (y/n)")
-            print("--> ")
-            key = msvcrt.getch().lower()
-            if key == b"y":
+            key = log_Read(logger.info, "More than 50 Changes. Please confirm these Changes. (y/n)", lambda: msvcrt.getch().decode().lower())
+            if key == "y" or key == "j":
                 logger.info("File renaming started.")
                 self.rename()
         else:
@@ -482,7 +486,7 @@ class MovieRenamer:
         logger.info("IMDb id: %s", imdb_id)
         apiKey = APIHandler().loadAPIKey()
         if not apiKey:
-            raise ValueError("API Key nicht gesetzt")
+            raise ValueError("API Key not found")
 
         url = f"http://www.omdbapi.com/?i={imdb_id}&apikey={apiKey}"
 
@@ -501,22 +505,22 @@ class MovieRenamer:
             # IMDb URL extrahieren
             imdb_url = MovieRenamer.extract_imdb_url(content)
             if not imdb_url:
-                logger.warning("Keine IMDb URL gefunden")
+                logger.warning("No IMDb URL found")
                 return None
 
             # Daten holen
             data = MovieRenamer.get_movie_data(imdb_url)
             if not data or data.get("Response") == "False":
-                logger.warning("Keine gültigen Filmdaten")
+                logger.warning("Request invalid")
                 return None
 
-            logger.info("Film gefunden:")
+            logger.info("Found Movie:")
             logger.info(f"Title = {data.get("Title")}")
             logger.info(f"Year = {data.get("Year")}")
             return data
 
         except Exception as e:
-            logger.error("Fehler beim NFO lesen:", e)
+            logger.error("Could'nt read NFO File: %s", e)
             return None
     
     def read_nfo(self, path):
@@ -636,7 +640,7 @@ class MovieRenamer:
             os.rename(nfoFile, new_nfo)
             logger.info(f"Renamed {os.path.basename(nfoFile)} -> {title}{year_part}.nfo")
         except FileNotFoundError as e:
-            logger.error("Konnte NFO Datei nicht finden. %s", e)
+            logger.error("Could'nt find NFO File: %s", e)
 
     def getData(self, files):
         for file in files:
@@ -660,8 +664,8 @@ class MovieRenamer:
                 if data and data.get("Title"):
                     self.rename(file, extension, nfoPath, data)
                     continue
-                logger.error("Konnte den Namen nicht finden.")
-            logger.error("Konnte keine NFO Datei finden. -> Benutze Dateinamen")
+                logger.error("Could'nt find data.")
+            logger.error("Could not find an NFO file -> using filename instead")
             data = self.extract_name_year(os.path.basename(file))
             if data and data.get("Title"):
                 self.rename(file, extension, nfoPath, data)
@@ -675,7 +679,7 @@ class MovieRenamer:
                     try:
                         logger.info("---------------------------------")
                         logger.info(os.path.basename(file))
-                        data = logInput("☺️  Konnte leider keinen Namen interpretieren. Bitte geben sie den gewünschten Dateinamen und Jahr ein (Req. Format Z.b: 'Spiderman 2, 2023') (Leer = Datei Überspringen): ")
+                        data = log_Read(logger.info, "Could not interpret a valid name. Please enter the desired filename and year (required format, e.g. “Spiderman 2, 2023”). Leave empty to skip the file:", input())
                         if not data:
                             continue
                         data = data.split(", ", 1) 
@@ -683,7 +687,7 @@ class MovieRenamer:
                         self.rename(file, extension, nfoPath, data)
                         break
                     except IndexError: 
-                        logger.error("Bitte halten sie sich an das angegebene Format.")
+                        logger.error("Please follow the specified format.")
                 continue
 
     # =========================================================
@@ -719,10 +723,10 @@ def run_update():
     updater.run_update()
 
 def invalidArgs():
-    logger.critical("Argument ungültig oder fehlend. Bitte benutze folgende argumente:")
-    logger.critical("\t--s {PATH}\t-\tum eine Serie oder Episoden umzu benennen")
-    logger.critical("\t--m {PATH}\t-\tum einen Film umzu benennen")
-    logger.critical("\t--remove\t-\tum den Registry entry zu entfernen.")
+    logger.critical("Argument invalid or missing. Please use the following arguments:")
+    logger.critical("\t--s {PATH}\t-\tto rename a series or episodes")
+    logger.critical("\t--m {PATH}\t-\tto rename a movie")
+    logger.critical("\t--remove\t-\tto remove the registry entry.")
     exit(0)
 
 if __name__ == "__main__":
