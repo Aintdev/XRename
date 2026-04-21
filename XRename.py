@@ -5,6 +5,8 @@ import msvcrt
 import winreg
 import requests
 import subprocess
+import json
+from datetime import datetime
 import keyring
 from pathlib import Path
 from colorlog import ColoredFormatter
@@ -14,14 +16,13 @@ from typing import Callable
 #
 # UPDATE LOG
 #
-# * NOW LOGGER HANDLES ALL INPUTS AND YOU CAN WRITE IN LOGGED LINES.
-# * LOGGING MESSAGES ARE NOW ALL ENGLISH
+# * CREATED UNDO
 #
 
-VERSION = "1.3.3"
+VERSION = "1.3.4"
 
 ALLOWEDFILETYPES = ('mkv', 'mp4', 'avi', 'avm')
-FORBIDDENFILENAMES = ("<", ">", ":", '"', "/", "\\", "|", "?", "*")
+FORBIDDENFILENAMES = ("<", ">", ":", '"', "/", "|", "?", "*")
 RESERVED_NAMES = {
     "CON", "PRN", "AUX", "NUL",
     *[f"COM{i}" for i in range(1, 10)],
@@ -40,6 +41,8 @@ logger = logging.getLogger()
 logger.addHandler(logHandler)
 logger.setLevel(logging.INFO)
 
+
+
 def log_Read(logFunc: Callable[[str], None], message: str, readFunc: Callable[[], str]):
     old_terminator = logHandler.terminator
     
@@ -48,6 +51,7 @@ def log_Read(logFunc: Callable[[str], None], message: str, readFunc: Callable[[]
         
         logFunc(message)
         value = readFunc()
+        print()
         
         return value
     finally:
@@ -58,7 +62,9 @@ def exit(x):
     logger.info("Exiting. CODE: %s", x)
     sys.exit(x)
 
-def sanitize_filename(name: str) -> str:
+def sanitize_filename(path: str) -> str:
+    dirName = os.path.dirname(path)
+    name = os.path.basename(path)
     for char in FORBIDDENFILENAMES:
         name = " ".join(name.replace(char, " ").split())
     name = name.rstrip(". ")
@@ -66,7 +72,7 @@ def sanitize_filename(name: str) -> str:
         name = f"{name}_"
     if not name:
         name = "Unknown"
-    return name[:255]
+    return os.path.join(dirName, name[:255])
 
 def get_base_path():
     if getattr(sys, 'frozen', False):
@@ -339,6 +345,86 @@ class XRenameContextMenu:
     def get_path(self):
         return sys.argv[-1] if len(sys.argv) > 1 else os.getcwd()
 
+class UndoHandler:
+    def __init__(self, historyPath: Path=Path(os.path.join(get_base_path(), "history.json"))):
+        self.historyPath = historyPath
+        self.currentSession: list[dict] = []
+ 
+    def append(self, change: dict[str, str]):
+        self.currentSession.append({
+            "old": str(change["old"]),
+            "new": str(change["new"])
+        })
+
+    def logChange(self):
+        session = {
+            "timestamp": datetime.now().isoformat(),
+            "changes": self.currentSession
+        }
+
+        if self.historyPath.exists():
+            with open(self.historyPath, "r", encoding="utf-8") as f:
+                history = json.load(f)
+        else:
+            history = []
+
+        history.append(session)
+
+        with open(self.historyPath, "w", encoding="utf-8") as f:
+            json.dump(history, f, indent=2)
+
+        self.currentSession = []
+
+    def undo(self):
+        with open(self.historyPath, "r", encoding="utf-8") as f:
+            history = json.load(f)
+
+        if not history:
+            logger.error("Nothing to undo")
+            return
+
+        last_session: dict = history.pop()
+        last_session["changes"] = [
+            change for change in last_session["changes"]
+            if os.path.exists(change["new"])
+        ]
+        for change in last_session["changes"]:
+            new_path = change["new"]
+            old_path = change["old"]
+
+            new_pretty = os.path.join(
+                os.path.basename(os.path.dirname(new_path)),
+                os.path.basename(new_path).replace(sys.argv[-1], "")
+            )
+
+            old_pretty = os.path.join(
+                os.path.basename(os.path.dirname(old_path)),
+                os.path.basename(old_path).replace(sys.argv[-1], "")
+            )
+
+            logger.info("Appended to undo-list: ...\%s -> ...\%s", new_pretty, old_pretty)
+
+        answer = log_Read(logger.info, "Do you want to Undo these changes. (Y/N)", lambda: msvcrt.getch().decode().lower())
+
+        if answer not in ("y", "j"):
+            return
+
+        for change in reversed(last_session["changes"]):
+            if os.path.exists(change["old"]):
+                logger.warning("%s File exists already. Skipping.", os.path.basename(change["old"]))
+                continue
+
+            try:
+                os.rename(change["new"], change["old"])
+                logger.info("Undid rename: %s -> %s", change["new"], change["old"])
+            except FileNotFoundError:
+                logger.warning("Could'nt find %s -> Skipped", os.path.basename(change["new"]))
+
+        with open(self.historyPath, "w", encoding="utf-8") as f:
+            json.dump(history, f, indent=2)
+        
+        logger.info("Finished undoing.")
+
 class SeriesRenamer:
     def __init__(self):
         self.changes = {}
@@ -411,6 +497,7 @@ class SeriesRenamer:
             value = sanitize_filename(value)
             if not os.path.exists(value):
                 os.rename(key, value)
+                undo.append({"old": key, "new": value})
                 logger.info(f"Rename completed: {key} --> {value}")
             else:
                 logger.warning(f"Skipped {key}, {value} already exists.")
@@ -430,6 +517,7 @@ class SeriesRenamer:
         else:
             self.rename()
 
+        undo.logChange()
         logger.info("Exited.")
 
 class MovieRenamer:
@@ -634,10 +722,12 @@ class MovieRenamer:
         )
 
         os.rename(movieFile, new_movie)
+        undo.append({"old": movieFile, "new": new_movie})
         logger.info(f"Renamed {os.path.basename(movieFile)} -> {title}{year_part}{extension}")
 
         try:
             os.rename(nfoFile, new_nfo)
+            undo.append({"old": nfoFile, "new": new_nfo})
             logger.info(f"Renamed {os.path.basename(nfoFile)} -> {title}{year_part}.nfo")
         except FileNotFoundError as e:
             logger.error("Could'nt find NFO File: %s", e)
@@ -700,7 +790,7 @@ class MovieRenamer:
 
         self.getData(files)
 
-        logger.info("Exited.")
+        undo.logChange()
         exit(1)
 
 # =========================================================
@@ -733,13 +823,19 @@ if __name__ == "__main__":
     logger.info("VERSION: %s", VERSION)
     run_update()
     configure_Context_Menu()
-    APIHandler().configure()
+    
+
+    undo = UndoHandler()
+    if sys.argv[1] == "--undo":
+        undo.undo()
+        exit(1)
 
     if len(sys.argv) < 3: invalidArgs()
 
     if "--m" == sys.argv[1] and os.path.exists(sys.argv[-1]):
         MovieRenamer().run()
     elif "--s" == sys.argv[1] and os.path.exists(sys.argv[-1]):
+        APIHandler().configure()
         SeriesRenamer().run()
     else:
         invalidArgs()

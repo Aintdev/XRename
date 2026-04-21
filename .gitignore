@@ -1,3 +1,8 @@
+# Custom
+history.json
+logs.txt
+serien_files/
+
 # Bytecode / Cache
 __pycache__/
 *.py[cod]

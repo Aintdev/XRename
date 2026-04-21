@@ -54,13 +54,7 @@ groups = [
     "WEBRip REMUX", "BluRay REPACK", "HDLight", "DVDRip RERIP"
 ]
 
-video_extensions = [
-    "mp4", "mkv", "avi", "mov", "wmv", "flv", "webm", "mpeg", "mpg",
-    "m4v", "3gp", "3g2", "ts", "vob", "rm", "rmvb", "f4v", "m2ts",
-    "mts", "ogv", "divx", "xvid", "asf", "mxf", "m2v", "qt", "dv",
-    "nut", "roq", "mod", "tod", "vro", "mjpg", "yuv", "amv", "bik",
-    "iso", "vcd", "dvr-ms", "gxf", "tsv", "avs", "ogm"
-]
+video_extensions = ['mkv', 'mp4', 'avi', 'avm']
 
 def delete_files_with_logs(path="serien_files", batch_size=2000):
     if not os.path.exists(path):
