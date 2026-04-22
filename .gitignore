@@ -2,6 +2,7 @@
 history.json
 logs.txt
 serien_files/
+wix
 
 # Bytecode / Cache
 __pycache__/
