@@ -1,158 +1,119 @@
 ﻿# XRename
 
-XRename ist ein Tool zum automatischen Umbenennen von **Serien** und **Filmen** 
-nach einem sauberen, einheitlichen Schema.
+XRename is a Windows tool for batch-renaming TV episodes and movies with a consistent naming scheme.
 
-Es unterstützt:
-- Drag & Drop
-- Kommandozeile
-- Windows-Kontextmenü (mit Untermenü für Serien & Filme)
-- IMDb-Daten über OMDb API (optional für Filme)
+## Current Version
 
----
+- 1.3.5
 
-## Features
+## What It Does
 
-### Serien
-- Erkennt Muster wie s01e02, S01E02 etc.
-- Wandelt Namen automatisch in lesbares Format um
-- Beispiel: MEINE_SERIE.s01e02.mkv → Meine Serie s01e02.mkv
-- Bestätigung bei mehr als 50 Änderungen
+- Renames TV episode files when names contain an `SxxExx` pattern.
+- Renames movie files using metadata from `.nfo` files, OMDb lookup (optional), filename parsing, or manual input.
+- Renames matching `.nfo` files alongside movie files.
+- Stores rename history and supports undo for the latest session.
+- Can install/remove a Windows context menu for quick right-click usage.
+- Can check for updates when running as a compiled `.exe`.
 
-### Filme
-- Nutzt .nfo Dateien zur Erkennung (bevorzugt)
-- Unterstützte Erkennungsmethoden (in dieser Reihenfolge):
-  1. IMDb ID aus NFO-Datei + OMDb API Abfrage
-  2. Titel + Jahr aus NFO-Datei (intelligent geparst)
-  3. Titel + Jahr aus Dateinamen
-  4. Manuelle Eingabe als Fallback
-- Beispiel: inception.2010.1080p.mkv → Inception (2010).mkv
-- Unterstützte Dateitypen: .mkv, .mp4, .avi, .avm
+## Supported File Types
 
----
+- `.mkv`
+- `.mp4`
+- `.avi`
+- `.avm`
 
-## Installation
+## Command Line Usage
 
-1. Kompiliere das Script zu einer .exe (z.B. mit PyInstaller):
-   `
-   pyinstaller XRename.spec
-   `
-   oder nutze die vorhandene Datei 
-ewrenamer.spec
+```
+XRename.exe --s "C:\Path\To\Series"
+XRename.exe --m "C:\Path\To\Movies"
+XRename.exe --undo
+XRename.exe --remove
+```
 
-2. Beim ersten Start wird das Windows-Kontextmenü **automatisch installiert**
+Arguments:
 
----
+- `--s {PATH}`: Rename series/episode files in a file or folder.
+- `--m {PATH}`: Rename movie files in a file or folder.
+- `--undo`: Undo the latest recorded rename session from `history.json`.
+- `--remove`: Remove XRename context menu entries from the current user registry.
 
-## Konfiguration
+If the path is invalid or missing, XRename prints argument help.
 
-### OMDb API Key (nur für IMDb-Abfragen in Filmen)
+## Series Mode
 
-Der API Key ist **optional**. Ohne ihn werden Movies über NFO-Dateien oder Dateinamen erkannt.
+- Detects patterns like `s01e02` (case-insensitive).
+- Builds a cleaner show title from the part before the episode token.
+- Preserves the file extension.
+- Asks for confirmation when more than 50 files are queued.
 
-1. Generiere einen kostenlosen Key auf: https://www.omdbapi.com/apikey.aspx
-2. Das Programm fragt beim Start danach
-3. Der Key wird in pi.dat gespeichert
+Example:
 
----
+```
+MY_SHOW.s01e02.1080p.mkv -> My Show s01e02.mkv
+```
 
-## Nutzung
+## Movie Mode
 
-### Drag & Drop
-- Ziehe eine Datei oder einen Ordner auf die .exe
-- Das Programm versucht automatisch zu erkennen, ob es sich um Serien oder Filme handelt
-- Nicht empfohlen: Nutze stattdessen das **Kontextmenü** für Klarheit
+For each movie file, XRename uses this fallback order:
 
-### Kommandozeile
+1. Read adjacent `.nfo` and extract IMDb ID (`tt...`) -> query OMDb.
+2. Parse title/year from `.nfo` content.
+3. Parse title/year from filename.
+4. Ask for manual input in `Title, Year` format.
 
-#### Serien umbenennen
-`cmd
-XRename.exe --s "C:\Pfad\zu\Serien"
-XRename.exe --s
-`
-→ Ohne Pfad: Nutzt das aktuelle Verzeichnis
+Output format:
 
-#### Filme umbenennen
-`cmd
-XRename.exe --m "C:\Pfad\zu\Filmen"
-XRename.exe --m
-`
-→ Ohne Pfad: Nutzt das aktuelle Verzeichnis
+```
+Title (Year).ext
+```
 
-### Windows Kontextmenü
+If a matching `.nfo` exists (`same-base-name.nfo`), it is renamed to the same `Title (Year).nfo` pattern.
 
-XRename erstellt ein Untermenü im Rechtsklick-Menü:
+## Windows Context Menu
 
-`
-XRename >
-  ├─ Rename Serie/Folge
-  └─ Rename Film
-`
+When running as a compiled `.exe`, XRename can auto-install context menu entries under current user registry:
 
-#### Verwendung
+- `Rename Series/Episodes`
+- `Rename Movie`
 
-1. **Serien**: Rechtsklick auf Datei/Ordner → XRename → Rename Serie/Folge
-2. **Filme**: Rechtsklick auf Datei/Ordner → XRename → Rename Film
+Registry roots:
 
----
+- `HKEY_CURRENT_USER\Software\Classes\*\shell\XRename`
+- `HKEY_CURRENT_USER\Software\Classes\Directory\shell\XRename`
 
-## Anforderungen an NFO-Dateien (Filme)
+## OMDb API Key
 
-Die NFO-Datei sollte einer der folgenden Formate entsprechen:
+OMDb is optional, but recommended for best movie title/year accuracy from IMDb IDs.
 
-### Mit IMDb ID (empfohlen)
-`xml
-tt0111161
-<!-- oder als URL -->
-https://www.imdb.com/title/tt0111161/
-`
+- XRename stores the key in Windows Credential Manager via `keyring` (service: `xrename`, key: `omdb`).
+- If no valid key is available, you can skip and continue with non-API fallbacks.
+- Get a key: https://www.omdbapi.com/apikey.aspx
 
-### Mit Titel und Jahr
-`
-Title (2010)
-The Shawshank Redemption (1994)
-`
+## Update Behavior
 
-### Mit Schlüsselwörtern
-`
-TITLE: The Matrix
-YEAR: 1999
-RELEASE DATE: 1999-03-31
-`
+When running as `.exe`, XRename checks:
 
----
+- Version source: `version.txt` from the GitHub repository
+- Download target: latest release `XRename.exe`
 
-## Dateistruktur
+If a newer version is found, XRename prompts before downloading and replacing the executable.
 
-- XRename.py - Hauptprogramm
-- pi.dat - Gespeicherter OMDb API Key (wird automatisch erstellt)
-- ersion.txt - Aktueller Versionsstring
+## Files Used by XRename
 
----
+- `XRename.py`: Main source script.
+- `XRename.spec`: PyInstaller spec.
+- `history.json`: Rename history for undo (created automatically).
+- `version.txt`: Latest version marker for updater.
 
-## Versionshistorie
+## Build (PyInstaller)
 
-### Version 1.1.0
-- Auto-Update Funktionalität hinzugefügt
-- IMDb API Integration für Filmerkennung
-- Verbesserte NFO-Datei Parsing
-- Windows Kontextmenü Installation
-- API Key Management
-- Unterstützung für multiple Dateiformat-Erkennungsmethoden
+```
+pyinstaller XRename.spec
+```
 
----
+## Notes
 
-## Hinweise
-
-- **Backup**: Erstelle ein Backup deiner Dateien vor der Nutzung
-- **Nur EXE**: Manche Features (Auto-Update, Kontextmenü) funktionieren nur in der kompilierten .exe
-- **API Rate Limits**: Die OMDb API hat Rate Limits – mehrfache Abfragen können limitiert sein
-
----
-
-## Fehlerbehandlung
-
-- Wenn über 50 Änderungen erkannt werden, wirst du aufgefordert zu bestätigen (y/n)
-- Existierende Dateien werden nicht überschrieben
-- Fehlende NFO-Dateien → Fallback zu Dateinamen-Erkennung
-- Ungültige API Keys werden erkannt und Neueingabe angefordert
+- Create a backup before large rename batches.
+- Existing target files are not overwritten.
+- Windows-only features: context menu integration, credential storage behavior, and executable self-update flow.

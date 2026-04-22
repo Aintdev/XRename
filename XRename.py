@@ -16,10 +16,10 @@ from typing import Callable
 #
 # UPDATE LOG
 #
-# * CREATED UNDO
+# * FIXED LOGGING IN UNDO
 #
 
-VERSION = "1.3.4"
+VERSION = "1.3.5"
 
 ALLOWEDFILETYPES = ('mkv', 'mp4', 'avi', 'avm')
 FORBIDDENFILENAMES = ("<", ">", ":", '"', "/", "|", "?", "*")
@@ -357,6 +357,9 @@ class UndoHandler:
         })
 
     def logChange(self):
+        if not self.currentSession:
+            return
+
         session = {
             "timestamp": datetime.now().isoformat(),
             "changes": self.currentSession
@@ -375,6 +378,15 @@ class UndoHandler:
 
         self.currentSession = []
 
+    @staticmethod
+    def prettyPath(path):
+        baseFolder = sys.argv[-1] if os.path.isdir(sys.argv[-1]) else os.path.dirname(sys.argv[-1])
+        baseName = os.path.basename(baseFolder)
+
+        return os.path.join(
+                baseName,
+                os.path.relpath(path, baseFolder))
+
     def undo(self):
         with open(self.historyPath, "r", encoding="utf-8") as f:
             history = json.load(f)
@@ -388,21 +400,9 @@ class UndoHandler:
             change for change in last_session["changes"]
             if os.path.exists(change["new"])
         ]
+
         for change in last_session["changes"]:
-            new_path = change["new"]
-            old_path = change["old"]
-
-            new_pretty = os.path.join(
-                os.path.basename(os.path.dirname(new_path)),
-                os.path.basename(new_path).replace(sys.argv[-1], "")
-            )
-
-            old_pretty = os.path.join(
-                os.path.basename(os.path.dirname(old_path)),
-                os.path.basename(old_path).replace(sys.argv[-1], "")
-            )
-
-            logger.info("Appended to undo-list: ...\%s -> ...\%s", new_pretty, old_pretty)
+            logger.info("Appended to undo-list: |.\\%-40s | -> |.\\%-40s |", UndoHandler.prettyPath(change["new"]), UndoHandler.prettyPath(change["old"]))
 
         answer = log_Read(logger.info, "Do you want to Undo these changes. (Y/N)", lambda: msvcrt.getch().decode().lower())
 
@@ -416,9 +416,9 @@ class UndoHandler:
 
             try:
                 os.rename(change["new"], change["old"])
-                logger.info("Undid rename: %s -> %s", change["new"], change["old"])
+                logger.info("Undid rename: |.\\%-40s | -> |.\\%-40s |", UndoHandler.prettyPath(change["new"]), UndoHandler.prettyPath(change["old"]))
             except FileNotFoundError:
-                logger.warning("Could'nt find %s -> Skipped", os.path.basename(change["new"]))
+                logger.warning("Could'nt find |.\\%40s | -> Skipped", UndoHandler.prettyPath(change["new"]))
 
         with open(self.historyPath, "w", encoding="utf-8") as f:
             json.dump(history, f, indent=2)
@@ -498,9 +498,9 @@ class SeriesRenamer:
             if not os.path.exists(value):
                 os.rename(key, value)
                 undo.append({"old": key, "new": value})
-                logger.info(f"Rename completed: {key} --> {value}")
+                logger.info(f"Rename completed: .\\{UndoHandler.prettyPath(key)} --> .\\{UndoHandler.prettyPath(value)}")
             else:
-                logger.warning(f"Skipped {key}, {value} already exists.")
+                logger.warning(f"Skipped .\\{UndoHandler.prettyPath(key)}, .\\{UndoHandler.prettyPath(value)} already exists.")
 
     # =========================================================
     # RUN
@@ -816,6 +816,7 @@ def invalidArgs():
     logger.critical("Argument invalid or missing. Please use the following arguments:")
     logger.critical("\t--s {PATH}\t-\tto rename a series or episodes")
     logger.critical("\t--m {PATH}\t-\tto rename a movie")
+    logger.critical("\t--undo\t-\tto undo a latest change")
     logger.critical("\t--remove\t-\tto remove the registry entry.")
     exit(0)
 
