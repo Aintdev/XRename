@@ -104,7 +104,7 @@ If a newer version is found, XRename prompts before downloading and replacing th
 - `XRename.py`: Main source script.
 - `XRename.spec`: PyInstaller spec.
 - `history.json`: Rename history for undo (created automatically).
-- `version.txt`: Latest version marker for updater.
+- `version.txt`: Latest version marker for updater. (Not required to download as its only important to be in the Github repo)
 
 ## Build (PyInstaller)
 
